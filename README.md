@@ -22,8 +22,6 @@ The system editor defines how things work; the character tracker shows how those
 
 # Features
 
-The following are features either are being added or are already implemented:
-
 <br>
 
 ## System Editor
