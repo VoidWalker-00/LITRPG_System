@@ -303,13 +303,13 @@ pub fn run(cmd: Command) {
         } => cmd_create(&char_dir, &name, str_val, agi, end, int, wis, per, innate),
         Command::Delete { name } => cmd_delete(&char_dir, &name),
         Command::Update { .. } => {
-            todo!("Update command will be implemented in Tasks 4-5")
+            Err("Update command not yet implemented".to_string())
         }
         Command::Skill { .. } => {
-            todo!("Skill commands will be implemented in Tasks 6-8")
+            Err("Skill commands not yet implemented".to_string())
         }
         Command::Profession { .. } => {
-            todo!("Profession commands will be implemented in Tasks 6-8")
+            Err("Profession commands not yet implemented".to_string())
         }
     };
 
@@ -366,6 +366,13 @@ fn cmd_create(
     // Check for duplicate.
     if json_store::load_character(char_dir, name).is_ok() {
         return Err(format!("Character '{}' already exists", name));
+    }
+
+    // Validate attribute ranges (1-10).
+    for (label, val) in [("str", str_val), ("agi", agi), ("end", end), ("int", int), ("wis", wis), ("per", per)] {
+        if val < 1 || val > 10 {
+            return Err(format!("Invalid value for --{}: {} (must be 1-10)", label, val));
+        }
     }
 
     let attrs = Attributes::new_clamped(str_val, agi, end, int, wis, per);
