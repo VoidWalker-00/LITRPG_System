@@ -25,7 +25,7 @@ use ratatui::{
     style::{Style, Modifier},
     text::{Line, Span},
 };
-use ui::app::{App, Tab};
+use ui::app::{App, DataReloader, Tab};
 use ui::theme::Theme;
 use ui::character_creation::CharacterCreationState;
 use ui::system_panel::SystemPanelState;
@@ -34,9 +34,16 @@ use ui::tree_library::TreeLibraryState;
 use ui::profession_library::ProfessionLibraryState;
 use ui::popup;
 use storage::json_store;
-use models::skill::SkillDefinition;
-use models::tree::TreeChain;
-use models::profession::ProfessionDefinition;
+
+/// Returns the absolute path for all persisted data.
+/// Uses XDG standard: ~/.local/share/litrpg (Linux), AppData/Roaming/litrpg (Windows).
+pub fn data_dir() -> std::path::PathBuf {
+    let dir = dirs::data_dir()
+        .expect("Could not determine data directory")
+        .join("litrpg");
+    std::fs::create_dir_all(&dir).expect("Could not create data directory");
+    dir
+}
 
 /// ASCII art title displayed at the top of every screen.
 const TITLE_ART: &[&str] = &[
@@ -64,43 +71,24 @@ fn main() -> io::Result<()> {
     // Load pywal color theme.
     let theme = Theme::load();
 
-    let data_dir = PathBuf::from("data");
+    let data_dir = data_dir();
     let mut app = App::new(data_dir);
-
-    // Load persisted skill and tree libraries from disk.
-    let skills_path = app.data_dir.join("skills.json");
-    if skills_path.exists() {
-        if let Ok(skills) = json_store::load_json::<Vec<SkillDefinition>>(&skills_path) {
-            app.skill_library = skills;
-        }
-    }
-    let trees_path = app.data_dir.join("trees.json");
-    if trees_path.exists() {
-        if let Ok(trees) = json_store::load_json::<Vec<TreeChain>>(&trees_path) {
-            app.tree_library = trees;
-        }
-    }
-    let professions_path = app.data_dir.join("professions.json");
-    if professions_path.exists() {
-        if let Ok(professions) = json_store::load_json::<Vec<ProfessionDefinition>>(&professions_path) {
-            app.profession_library = professions;
-        }
-    }
 
     // Per-tab state — created once, reused throughout.
     let mut char_state = CharacterCreationState::new();
     let mut panel_state = SystemPanelState::new();
     let mut skill_state = SkillLibraryState::new();
-    let mut tree_state = TreeLibraryState::new();
+    let mut _tree_state = TreeLibraryState::new();
     let mut profession_state = ProfessionLibraryState::new();
 
-    // Initial character list load.
-    char_state.refresh_characters(&app);
+    // Live data reloader — initial load + periodic mtime checks.
+    let mut reloader = DataReloader::new();
+    reloader.force_reload(&mut app, &mut char_state);
 
     // Main event loop.
     while app.running {
-        // Refresh character list each frame (cheap filesystem scan).
-        char_state.refresh_characters(&app);
+        // Check for external data changes (mtime-gated, every 2s).
+        reloader.check(&mut app, &mut char_state);
 
         terminal.draw(|f| {
             let full = f.area();
@@ -147,10 +135,10 @@ fn main() -> io::Result<()> {
             // Help bar at the bottom.
             if app.show_help {
                 let help_text = match app.active_tab {
-                    Tab::Character => " Tab: Next tab  j/k: Navigate  Enter: Load  a: New  d: Delete  ?: Hide help  q: Quit",
-                    Tab::SystemPanel => " Tab: Next tab  j/k: Navigate  +/-: Adjust  Enter: Expand  d: Delete  ?: Hide help  q: Quit",
-                    Tab::SkillLibrary => " Tab: Next tab  j/k: Navigate  /: Search  Enter: View  a: Add  d: Delete  ?: Hide help  q: Quit",
-                    Tab::ProfessionLibrary => " Tab: Next tab  j/k: Navigate  /: Search  Enter: View  a: Add  d: Delete  ?: Hide help",
+                    Tab::Character => " Tab: Next tab  j/k: Navigate  Enter: Load  a: New  d: Delete  r: Reload  ?: Hide help  q: Quit",
+                    Tab::SystemPanel => " Tab: Next tab  j/k: Navigate  +/-: Adjust  Enter: Expand  d: Delete  r: Reload  ?: Hide help  q: Quit",
+                    Tab::SkillLibrary => " Tab: Next tab  j/k: Navigate  /: Search  Enter: View  a: Add  d: Delete  r: Reload  ?: Hide help  q: Quit",
+                    Tab::ProfessionLibrary => " Tab: Next tab  j/k: Navigate  /: Search  Enter: View  a: Add  d: Delete  r: Reload  ?: Hide help",
                 };
                 let help = Paragraph::new(help_text)
                     .style(Style::default().fg(theme.dimmed));
@@ -209,6 +197,10 @@ fn main() -> io::Result<()> {
                 }
                 KeyCode::Char('q') => {
                     app.show_quit_confirm = true;
+                    continue;
+                }
+                KeyCode::Char('r') => {
+                    reloader.force_reload(&mut app, &mut char_state);
                     continue;
                 }
                 _ => {}

@@ -1,89 +1,126 @@
-# LITRPG_System
+# LITRPG System
 
-LITRPG_System is a terminal-based tool for building and tracking progression systems in LITRPG-style worlds.
-It’s designed for writers and designers who want fine-grained control over how stats, levels, and abilities evolve — and for tracking the growth of individual characters over time.
+A terminal-based tool for building and tracking progression systems in LITRPG-style worlds.
+Designed for writers and world-builders who want fine-grained control over stats, levels, skills, and character growth.
 
-<br>
+---
 
 ## Overview
 
-The app separates system creation (world rules) from character tracking (individual progress).
+LITRPG System separates **system design** (the rules of your world) from **character tracking** (individual progress).
 
-You can:
+- Design progression systems — stats, levels, grades, skills, classes
+- Create and track characters that live within those systems
+- View and manage everything through a terminal UI or script against it with the CLI
 
-Design and save entire system templates — complete rule frameworks for a fictional world.
+---
 
-Create character templates that operate within those systems — tracking their growth, classes, and stats over time.
+## TUI (Terminal User Interface)
 
-While you can design multiple systems, progress tracking is character-based.
-The system editor defines how things work; the character tracker shows how those rules are applied
+Launch by running `litrpg` with no arguments.
 
-<br>
+```
+litrpg
+```
 
-# Features
+The TUI is a full-screen terminal application with four tabs:
 
-<br>
+| Tab | What it does |
+|-----|-------------|
+| **Character** | Create, load, and view characters. Shows stats, grade, level, XP, skills, and class. |
+| **System Panel** | Manage the progression system — adjust stat formulas, level thresholds, and grade rules. |
+| **Skill Library** | Browse, add, search, and delete skills available in your world. |
+| **Profession Library** | Manage classes/professions that characters can hold. |
 
-## System Editor
+**Navigation:**
+- `Tab` — cycle between tabs
+- `j` / `k` — move up/down in lists
+- `Enter` — select / expand
+- `a` — add new entry
+- `d` — delete selected
+- `/` — search (Skill/Profession tabs)
+- `r` — reload data from disk
+- `?` — toggle help bar
+- `q` — quit
 
-Build and customize your own LITRPG progression system.
-You can create something simple and linear — or as complex as novels like Defiance of the Fall or Randidly Ghosthound.
+---
 
-**System Editor Tools**
+## CLI (Command Line Interface)
 
-**Stats**
-Add, remove, and define core stats (e.g., Strength, Agility, Intelligence, etc.).
-Configure quantitative growth and qualitative scaling across tiers or levels.
+The CLI lets you manage characters and data from scripts or other tools without opening the TUI.
+All output is JSON.
 
-**Levels**
-Set experience requirements, growth formulas, or leveling curves.
-Define tier boundaries and progression thresholds.
+```
+litrpg <command> [options]
+```
 
-**Classes**
-Add or remove classes.
-Specify class bonuses per level, class type (e.g., mage, hybrid, combat), and class quality (Common → Origin).
-Define how class progression interacts with level tiers.
+### Commands
 
-**Skills**
-Add or edit skills that characters can learn or evolve.
-Assign stat influences, level growth, and scaling qualities.
-Enable progression tracking (e.g., skill XP or proficiency).
+**List all characters:**
+```bash
+litrpg list
+```
 
-**Information Fields**
-Add custom data fields such as Name, Title, Location, Status Effects, etc.
-These define what the system displays in a character sheet or status window.
+**Show a character's full stats:**
+```bash
+litrpg show "Kael"
+```
 
-<br>
+**Create a new character:**
+```bash
+litrpg create "Kael" --str 7 --agi 6 --end 5 --int 4 --wis 4 --per 4
+```
 
-## System Templates
+Default value for all stats is `5` if not specified.
 
-Define the rules and structure of your world — the foundation upon which all characters operate.
-You can:
+**Delete a character:**
+```bash
+litrpg delete "Kael"
+```
 
-Save, load, and reuse different world systems.
+**Update a character** (level up, grade up, add/remove skills or professions):
+```bash
+litrpg update "Kael" --level-up 3
+litrpg update "Kael" --grade-up
+litrpg update "Kael" --add-skill "Shadow Step"
+litrpg update "Kael" --remove-skill "Shadow Step"
+litrpg update "Kael" --add-profession "Rogue"
+```
 
-Adjust stat behaviors, level formulas, and class hierarchies.
+---
 
-Use them as blueprints for future stories or experiments.
+## Installation
 
-<br>
+### From AUR (Arch Linux) — recommended
 
-## Character Tracker
+Using `yay`:
+```bash
+yay -S litrpg-system-git
+```
 
-Represent individual characters living within a chosen system.
-Each character template includes:
+This clones and builds from source automatically.
 
-Personal stat sheet (current level, tier, stats, etc.)
+### From Source
 
-Skill list and class information
+**Requirements:** Rust (stable), Cargo
 
-Experience progress and tier stage
+```bash
+git clone https://github.com/VoidWalker-00/LITRPG_System.git
+cd LITRPG_System
+cargo build --release
+sudo install -Dm755 target/release/LITRPG_System /usr/bin/litrpg
+```
 
-Optional notes or narrative entries for story tracking
+---
 
-Note: Only characters can be tracked in real time.
-System templates define rules but do not have “progress” themselves.
+## Data Storage
 
-<br>
+Character and system data is stored at:
+- **Linux:** `~/.local/share/litrpg/`
+- **Windows:** `%APPDATA%\litrpg\`
 
-# Getting Started
+---
+
+## License
+
+MIT
