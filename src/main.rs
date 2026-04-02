@@ -11,7 +11,6 @@ mod ui;
 mod cli;
 
 use std::io;
-use std::path::PathBuf;
 use crossterm::{
     event::{self, Event, KeyCode},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -30,7 +29,6 @@ use ui::theme::Theme;
 use ui::character_creation::CharacterCreationState;
 use ui::system_panel::SystemPanelState;
 use ui::skill_library::SkillLibraryState;
-use ui::tree_library::TreeLibraryState;
 use ui::profession_library::ProfessionLibraryState;
 use ui::popup;
 use storage::json_store;
@@ -78,7 +76,6 @@ fn main() -> io::Result<()> {
     let mut char_state = CharacterCreationState::new();
     let mut panel_state = SystemPanelState::new();
     let mut skill_state = SkillLibraryState::new();
-    let mut _tree_state = TreeLibraryState::new();
     let mut profession_state = ProfessionLibraryState::new();
 
     // Live data reloader — initial load + periodic mtime checks.
@@ -222,7 +219,6 @@ fn main() -> io::Result<()> {
         let _ = json_store::save_character(&char_dir, character);
     }
     let _ = json_store::save_json(&app.data_dir.join("skills.json"), &app.skill_library);
-    let _ = json_store::save_json(&app.data_dir.join("trees.json"), &app.tree_library);
     let _ = json_store::save_json(&app.data_dir.join("professions.json"), &app.profession_library);
 
     // Restore terminal state.

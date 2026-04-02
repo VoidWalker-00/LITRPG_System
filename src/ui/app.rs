@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 use crate::models::character::Character;
 use crate::models::skill::SkillDefinition;
-use crate::models::tree::TreeChain;
 use crate::models::profession::ProfessionDefinition;
 use crate::storage::json_store;
 
@@ -64,8 +63,6 @@ pub struct App {
     pub current_character: Option<Character>,
     /// All skill definitions loaded from the library.
     pub skill_library: Vec<SkillDefinition>,
-    /// All tree chains loaded from the library (kept for tree_library.rs compatibility).
-    pub tree_library: Vec<TreeChain>,
     /// All profession definitions loaded from the library.
     pub profession_library: Vec<ProfessionDefinition>,
     /// Whether the help bar is visible (toggled with ?).
@@ -83,7 +80,6 @@ impl App {
             data_dir,
             current_character: None,
             skill_library: Vec::new(),
-            tree_library: Vec::new(),
             profession_library: Vec::new(),
             show_help: false,
             show_quit_confirm: false,
@@ -102,7 +98,6 @@ const RELOAD_INTERVAL: Duration = Duration::from_secs(2);
 pub struct DataReloader {
     last_check: Instant,
     mtime_skills: Option<SystemTime>,
-    mtime_trees: Option<SystemTime>,
     mtime_professions: Option<SystemTime>,
     mtime_characters: Option<SystemTime>,
     mtime_active_char: Option<SystemTime>,
@@ -114,7 +109,6 @@ impl DataReloader {
         Self {
             last_check: Instant::now(),
             mtime_skills: None,
-            mtime_trees: None,
             mtime_professions: None,
             mtime_characters: None,
             mtime_active_char: None,
@@ -134,7 +128,6 @@ impl DataReloader {
     /// Force an immediate reload of all data files regardless of mtime.
     pub fn force_reload(&mut self, app: &mut App, char_state: &mut super::character_creation::CharacterCreationState) {
         self.mtime_skills = None;
-        self.mtime_trees = None;
         self.mtime_professions = None;
         self.mtime_characters = None;
         self.mtime_active_char = None;
@@ -144,7 +137,6 @@ impl DataReloader {
     /// Compare mtimes and reload files that changed.
     fn reload_if_changed(&mut self, app: &mut App, char_state: &mut super::character_creation::CharacterCreationState) {
         let skills_path = app.data_dir.join("skills.json");
-        let trees_path = app.data_dir.join("trees.json");
         let profs_path = app.data_dir.join("professions.json");
         let char_dir = app.data_dir.join("characters");
 
@@ -154,16 +146,6 @@ impl DataReloader {
                 self.mtime_skills = Some(new_mtime);
                 if let Ok(skills) = json_store::load_json::<Vec<SkillDefinition>>(&skills_path) {
                     app.skill_library = skills;
-                }
-            }
-        }
-
-        // Tree library.
-        if let Some(new_mtime) = file_mtime(&trees_path) {
-            if self.mtime_trees != Some(new_mtime) {
-                self.mtime_trees = Some(new_mtime);
-                if let Ok(trees) = json_store::load_json::<Vec<TreeChain>>(&trees_path) {
-                    app.tree_library = trees;
                 }
             }
         }

@@ -4,7 +4,6 @@ pub mod popup;
 pub mod character_creation;
 pub mod system_panel;
 pub mod skill_library;
-pub mod tree_library;
 pub mod profession_library;
 pub mod card_grid;
 
