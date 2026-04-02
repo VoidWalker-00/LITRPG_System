@@ -8,7 +8,7 @@ use std::fs;
 use std::path::Path;
 use serde::{Serialize, de::DeserializeOwned};
 use crate::models::character::Character;
-use crate::models::profession::ProfessionDefinition;
+use crate::models::class::ClassDefinition;
 
 /// Save a character to a JSON file named after the character.
 /// Creates the directory if it doesn't exist.
@@ -64,13 +64,13 @@ pub fn load_json<T: DeserializeOwned>(path: &Path) -> Result<T, String> {
     serde_json::from_str(&json).map_err(|e| e.to_string())
 }
 
-/// Save profession definitions to a JSON file.
-pub fn save_professions(path: &Path, professions: &[ProfessionDefinition]) -> Result<(), String> {
-    save_json(path, professions)
+/// Save class definitions to a JSON file.
+pub fn save_classes(path: &Path, classes: &[ClassDefinition]) -> Result<(), String> {
+    save_json(path, classes)
 }
 
-/// Load profession definitions from a JSON file.
-pub fn load_professions(path: &Path) -> Result<Vec<ProfessionDefinition>, String> {
+/// Load class definitions from a JSON file.
+pub fn load_classes(path: &Path) -> Result<Vec<ClassDefinition>, String> {
     load_json(path)
 }
 

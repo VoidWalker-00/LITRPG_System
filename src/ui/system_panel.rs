@@ -2,7 +2,7 @@
 ///
 /// Layout:
 ///   - Name
-///   - Profession: <name> (navigable, Enter to pick, d to remove)
+///   - Class: <name> (navigable, Enter to pick, d to remove)
 ///   - Race [Grade]
 ///   - Level [XP%]
 ///   - Attributes
@@ -14,7 +14,7 @@
 
 use crate::models::attribute::AttributeKind;
 use crate::models::character::{Character, CharacterSkill};
-use crate::models::profession::CharacterProfession;
+use crate::models::class::CharacterClass;
 use crate::models::skill::{MasteryRank, SkillCategory, SkillType};
 use crate::formulas::xp;
 use crate::ui::app::App;
@@ -33,7 +33,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 /// Sections the cursor can be on.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Section {
-    Profession,
+    Class,
     Grade,
     Level,
     Attribute(usize),
@@ -47,7 +47,7 @@ enum PopupMode {
     None,
     KillEntry,
     AddSkill,
-    AddProfession,
+    AddClass,
 }
 
 /// All state for the System Panel tab.
@@ -61,8 +61,8 @@ pub struct SystemPanelState {
     kill_field: usize,
     skill_picker_cursor: usize,
     skill_picker_list: Vec<String>,
-    profession_picker_cursor: usize,
-    profession_picker_list: Vec<String>,
+    class_picker_cursor: usize,
+    class_picker_list: Vec<String>,
 }
 
 impl SystemPanelState {
@@ -77,8 +77,8 @@ impl SystemPanelState {
             kill_field: 0,
             skill_picker_cursor: 0,
             skill_picker_list: Vec::new(),
-            profession_picker_cursor: 0,
-            profession_picker_list: Vec::new(),
+            class_picker_cursor: 0,
+            class_picker_list: Vec::new(),
         }
     }
 
@@ -87,7 +87,7 @@ impl SystemPanelState {
         let mut nav = Vec::new();
         let Some(character) = &app.current_character else { return nav; };
 
-        nav.push(Section::Profession);
+        nav.push(Section::Class);
         nav.push(Section::Grade);
         nav.push(Section::Level);
         for i in 0..6 { nav.push(Section::Attribute(i)); }
@@ -133,14 +133,14 @@ impl SystemPanelState {
             Style::default().fg(theme.fg).add_modifier(Modifier::BOLD),
         ));
 
-        // Profession row — navigable, Enter to pick, d to remove.
-        let prof_prefix = self.cursor_prefix(&nav, Section::Profession);
-        let prof_style = self.cursor_style(theme, &nav, Section::Profession);
-        let prof_name = character.professions.first()
+        // Class row — navigable, Enter to pick, d to remove.
+        let prof_prefix = self.cursor_prefix(&nav, Section::Class);
+        let prof_style = self.cursor_style(theme, &nav, Section::Class);
+        let prof_name = character.classes.first()
             .map(|p| p.definition_name.as_str())
             .unwrap_or("None");
         lines.push(Line::styled(
-            format!("{}Profession: {}", prof_prefix, prof_name),
+            format!("{}Class: {}", prof_prefix, prof_name),
             prof_style,
         ));
 
@@ -184,14 +184,14 @@ impl SystemPanelState {
         let mut active_indices: Vec<usize> = Vec::new();
         let mut passive_indices: Vec<usize> = Vec::new();
         let mut innate_indices: Vec<usize> = Vec::new();
-        let mut profession_indices: Vec<usize> = Vec::new();
+        let mut class_indices: Vec<usize> = Vec::new();
 
         for (i, skill) in character.skills.iter().enumerate() {
             let cat = self.skill_category_for(skill, app);
             let stype = self.skill_type_for(skill, app);
             match cat {
                 Some(SkillCategory::Innate) => innate_indices.push(i),
-                Some(SkillCategory::Profession) => profession_indices.push(i),
+                Some(SkillCategory::Class) => class_indices.push(i),
                 _ => match stype {
                     Some(SkillType::Active) => active_indices.push(i),
                     Some(SkillType::Passive) => passive_indices.push(i),
@@ -204,7 +204,7 @@ impl SystemPanelState {
         self.render_skill_group(f, "Active Skills", &active_indices, character, app, &nav, &mut lines, theme);
         self.render_skill_group(f, "Passive Skills", &passive_indices, character, app, &nav, &mut lines, theme);
         self.render_skill_group(f, "Innate Skills", &innate_indices, character, app, &nav, &mut lines, theme);
-        self.render_skill_group(f, "Profession Skills", &profession_indices, character, app, &nav, &mut lines, theme);
+        self.render_skill_group(f, "Class Skills", &class_indices, character, app, &nav, &mut lines, theme);
 
         lines.push(Line::styled(divider(area.width), Style::default().fg(theme.border)));
 
@@ -232,12 +232,12 @@ impl SystemPanelState {
             }).collect();
             popup::render_modal(f, area, theme, "Add Skill", &body, "j/k: Navigate  Enter: Add  Esc: Cancel");
         }
-        if self.popup == PopupMode::AddProfession {
-            let body: Vec<Line> = self.profession_picker_list.iter().enumerate().map(|(i, name)| {
-                let prefix = if i == self.profession_picker_cursor { ">> " } else { "   " };
+        if self.popup == PopupMode::AddClass {
+            let body: Vec<Line> = self.class_picker_list.iter().enumerate().map(|(i, name)| {
+                let prefix = if i == self.class_picker_cursor { ">> " } else { "   " };
                 Line::from(format!("{}{}", prefix, name))
             }).collect();
-            popup::render_modal(f, area, theme, "Add Profession", &body, "j/k: Navigate  Enter: Add  Esc: Cancel");
+            popup::render_modal(f, area, theme, "Add Class", &body, "j/k: Navigate  Enter: Add  Esc: Cancel");
         }
         if self.popup == PopupMode::KillEntry {
             let field_marker = |f_idx: usize| if self.kill_field == f_idx { "> " } else { "  " };
@@ -352,8 +352,8 @@ impl SystemPanelState {
         if self.popup == PopupMode::AddSkill {
             return self.handle_add_skill(key, app);
         }
-        if self.popup == PopupMode::AddProfession {
-            return self.handle_add_profession(key, app);
+        if self.popup == PopupMode::AddClass {
+            return self.handle_add_class(key, app);
         }
 
         let nav = self.build_nav(app);
@@ -368,9 +368,9 @@ impl SystemPanelState {
             }
             KeyCode::Enter => {
                 match nav.get(self.cursor) {
-                    Some(Section::Profession) => {
-                        // Open profession picker.
-                        self.open_add_profession(app);
+                    Some(Section::Class) => {
+                        // Open class picker.
+                        self.open_add_class(app);
                     }
                     Some(Section::Level) => {
                         self.popup = PopupMode::KillEntry;
@@ -424,6 +424,7 @@ impl SystemPanelState {
                     character.xp = (character.xp - required).max(0.0);
                     character.level += 1;
                     character.unspent_attribute_points += character.attribute_points_per_level();
+                    character.apply_class_level_bonuses(&app.class_library);
                 }
             }
             Some(Section::Attribute(i)) => {
@@ -470,13 +471,13 @@ impl SystemPanelState {
         }
     }
 
-    /// Delete: remove skill at cursor, or remove profession on Profession row.
+    /// Delete: remove skill at cursor, or remove class on Class row.
     fn handle_delete(&mut self, app: &mut App, nav: &[Section]) {
         let Some(character) = &mut app.current_character else { return; };
         match nav.get(self.cursor) {
-            Some(Section::Profession) => {
-                if !character.professions.is_empty() {
-                    character.professions.remove(0);
+            Some(Section::Class) => {
+                if !character.classes.is_empty() {
+                    character.classes.remove(0);
                 }
             }
             Some(Section::Skill(i)) => {
@@ -533,36 +534,36 @@ impl SystemPanelState {
         true
     }
 
-    /// Build the list of professions not already on the character.
-    fn open_add_profession(&mut self, app: &App) {
+    /// Build the list of classs not already on the character.
+    fn open_add_class(&mut self, app: &App) {
         let Some(character) = &app.current_character else { return; };
-        if character.professions.len() as u32 >= character.profession_slots { return; }
-        let owned: Vec<&str> = character.professions.iter().map(|p| p.definition_name.as_str()).collect();
-        self.profession_picker_list = app.profession_library.iter()
+        if character.classes.len() as u32 >= character.class_slots { return; }
+        let owned: Vec<&str> = character.classes.iter().map(|p| p.definition_name.as_str()).collect();
+        self.class_picker_list = app.class_library.iter()
             .filter(|p| !owned.contains(&p.name.as_str()))
             .map(|p| p.name.clone())
             .collect();
-        if self.profession_picker_list.is_empty() { return; }
-        self.profession_picker_cursor = 0;
-        self.popup = PopupMode::AddProfession;
+        if self.class_picker_list.is_empty() { return; }
+        self.class_picker_cursor = 0;
+        self.popup = PopupMode::AddClass;
     }
 
-    /// Handle input in the add-profession picker popup.
-    fn handle_add_profession(&mut self, key: KeyEvent, app: &mut App) -> bool {
-        let max = self.profession_picker_list.len().saturating_sub(1);
+    /// Handle input in the add-class picker popup.
+    fn handle_add_class(&mut self, key: KeyEvent, app: &mut App) -> bool {
+        let max = self.class_picker_list.len().saturating_sub(1);
         match key.code {
             KeyCode::Up | KeyCode::Char('k') => {
-                if self.profession_picker_cursor > 0 { self.profession_picker_cursor -= 1; }
+                if self.class_picker_cursor > 0 { self.class_picker_cursor -= 1; }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if self.profession_picker_cursor < max { self.profession_picker_cursor += 1; }
+                if self.class_picker_cursor < max { self.class_picker_cursor += 1; }
             }
             KeyCode::Enter => {
-                if let Some(name) = self.profession_picker_list.get(self.profession_picker_cursor) {
+                if let Some(name) = self.class_picker_list.get(self.class_picker_cursor) {
                     if let Some(character) = &mut app.current_character {
-                        // Auto-add the profession's granted skills.
-                        if let Some(prof_def) = app.profession_library.iter().find(|p| &p.name == name) {
-                            for skill_name in &prof_def.skills {
+                        // Auto-add the class's granted skills.
+                        if let Some(cls_def) = app.class_library.iter().find(|p| &p.name == name) {
+                            for skill_name in &cls_def.skills {
                                 if !character.skills.iter().any(|s| s.definition_name == *skill_name) {
                                     character.skills.push(CharacterSkill {
                                         definition_name: skill_name.clone(),
@@ -572,7 +573,7 @@ impl SystemPanelState {
                                 }
                             }
                         }
-                        character.professions.push(CharacterProfession {
+                        character.classes.push(CharacterClass {
                             definition_name: name.clone(),
                             level: 0,
                             passive_rank: 0,
@@ -603,6 +604,7 @@ impl SystemPanelState {
             }
             KeyCode::Tab => { self.kill_field = 1 - self.kill_field; }
             KeyCode::Enter => {
+                let class_library = app.class_library.clone();
                 if let Some(character) = &mut app.current_character {
                     let enemy_level = self.kill_enemy_level.parse::<u32>().unwrap_or(character.level);
                     let kills = self.kill_count.parse::<u32>().unwrap_or(0);
@@ -615,6 +617,7 @@ impl SystemPanelState {
                             character.xp -= required;
                             character.level += 1;
                             character.unspent_attribute_points += character.attribute_points_per_level();
+                            character.apply_class_level_bonuses(&class_library);
                         } else {
                             break;
                         }

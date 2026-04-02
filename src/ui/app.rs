@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 use crate::models::character::Character;
 use crate::models::skill::SkillDefinition;
-use crate::models::profession::ProfessionDefinition;
+use crate::models::class::ClassDefinition;
 use crate::storage::json_store;
 
 /// The four navigable tabs, cycled with the Tab key.
@@ -18,7 +18,7 @@ pub enum Tab {
     Character,
     SystemPanel,
     SkillLibrary,
-    ProfessionLibrary,
+    ClassLibrary,
 }
 
 impl Tab {
@@ -27,7 +27,7 @@ impl Tab {
         Tab::Character,
         Tab::SystemPanel,
         Tab::SkillLibrary,
-        Tab::ProfessionLibrary,
+        Tab::ClassLibrary,
     ];
 
     /// Display label for the tab bar.
@@ -36,7 +36,7 @@ impl Tab {
             Tab::Character => "Character",
             Tab::SystemPanel => "System Panel",
             Tab::SkillLibrary => "Skill Library",
-            Tab::ProfessionLibrary => "Profession Library",
+            Tab::ClassLibrary => "Class Library",
         }
     }
 
@@ -45,8 +45,8 @@ impl Tab {
         match self {
             Tab::Character => Tab::SystemPanel,
             Tab::SystemPanel => Tab::SkillLibrary,
-            Tab::SkillLibrary => Tab::ProfessionLibrary,
-            Tab::ProfessionLibrary => Tab::Character,
+            Tab::SkillLibrary => Tab::ClassLibrary,
+            Tab::ClassLibrary => Tab::Character,
         }
     }
 }
@@ -63,8 +63,8 @@ pub struct App {
     pub current_character: Option<Character>,
     /// All skill definitions loaded from the library.
     pub skill_library: Vec<SkillDefinition>,
-    /// All profession definitions loaded from the library.
-    pub profession_library: Vec<ProfessionDefinition>,
+    /// All class definitions loaded from the library.
+    pub class_library: Vec<ClassDefinition>,
     /// Whether the help bar is visible (toggled with ?).
     pub show_help: bool,
     /// Whether the quit confirmation popup is showing.
@@ -80,7 +80,7 @@ impl App {
             data_dir,
             current_character: None,
             skill_library: Vec::new(),
-            profession_library: Vec::new(),
+            class_library: Vec::new(),
             show_help: false,
             show_quit_confirm: false,
         }
@@ -137,7 +137,7 @@ impl DataReloader {
     /// Compare mtimes and reload files that changed.
     fn reload_if_changed(&mut self, app: &mut App, char_state: &mut super::character_creation::CharacterCreationState) {
         let skills_path = app.data_dir.join("skills.json");
-        let profs_path = app.data_dir.join("professions.json");
+        let profs_path = app.data_dir.join("classes.json");
         let char_dir = app.data_dir.join("characters");
 
         // Skills library.
@@ -150,12 +150,12 @@ impl DataReloader {
             }
         }
 
-        // Profession library.
+        // Class library.
         if let Some(new_mtime) = file_mtime(&profs_path) {
             if self.mtime_professions != Some(new_mtime) {
                 self.mtime_professions = Some(new_mtime);
-                if let Ok(profs) = json_store::load_json::<Vec<ProfessionDefinition>>(&profs_path) {
-                    app.profession_library = profs;
+                if let Ok(profs) = json_store::load_json::<Vec<ClassDefinition>>(&profs_path) {
+                    app.class_library = profs;
                 }
             }
         }

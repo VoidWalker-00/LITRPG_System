@@ -110,7 +110,7 @@ impl EffectField {
 /// Filter state for category and type dropdowns.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(dead_code)]
-enum FilterCategory { All, Acquired, Innate, Profession }
+enum FilterCategory { All, Acquired, Innate, Class }
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[allow(dead_code)]
 enum FilterType { All, Active, Passive }
@@ -249,7 +249,7 @@ impl SkillLibraryState {
                     FilterCategory::All => true,
                     FilterCategory::Acquired => s.category == SkillCategory::Acquired,
                     FilterCategory::Innate => s.category == SkillCategory::Innate,
-                    FilterCategory::Profession => s.category == SkillCategory::Profession,
+                    FilterCategory::Class => s.category == SkillCategory::Class,
                 };
                 let type_match = match self.filter_type {
                     FilterType::All => true,
@@ -332,7 +332,7 @@ impl SkillLibraryState {
             FilterCategory::All => "All",
             FilterCategory::Acquired => "Acquired",
             FilterCategory::Innate => "Innate",
-            FilterCategory::Profession => "Profession",
+            FilterCategory::Class => "Class",
         };
         let type_label = match self.filter_type {
             FilterType::All => "All",
@@ -744,8 +744,8 @@ impl SkillLibraryState {
                 KeyCode::Left | KeyCode::Char('h') | KeyCode::Right | KeyCode::Char('l') => {
                     self.skill_category = match self.skill_category {
                         SkillCategory::Acquired => SkillCategory::Innate,
-                        SkillCategory::Innate => SkillCategory::Profession,
-                        SkillCategory::Profession => SkillCategory::Acquired,
+                        SkillCategory::Innate => SkillCategory::Class,
+                        SkillCategory::Class => SkillCategory::Acquired,
                     };
                 }
                 _ => {}

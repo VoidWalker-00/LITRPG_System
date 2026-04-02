@@ -29,7 +29,7 @@ use ui::theme::Theme;
 use ui::character_creation::CharacterCreationState;
 use ui::system_panel::SystemPanelState;
 use ui::skill_library::SkillLibraryState;
-use ui::profession_library::ProfessionLibraryState;
+use ui::class_library::ClassLibraryState;
 use ui::popup;
 use storage::json_store;
 
@@ -76,7 +76,7 @@ fn main() -> io::Result<()> {
     let mut char_state = CharacterCreationState::new();
     let mut panel_state = SystemPanelState::new();
     let mut skill_state = SkillLibraryState::new();
-    let mut profession_state = ProfessionLibraryState::new();
+    let mut class_state = ClassLibraryState::new();
 
     // Live data reloader — initial load + periodic mtime checks.
     let mut reloader = DataReloader::new();
@@ -122,7 +122,7 @@ fn main() -> io::Result<()> {
                 Tab::Character => char_state.render(f, chunks[2], &app, &theme),
                 Tab::SystemPanel => panel_state.render(f, chunks[2], &app, &theme),
                 Tab::SkillLibrary => skill_state.render(f, chunks[2], &app, &theme),
-                Tab::ProfessionLibrary => profession_state.render(f, chunks[2], &app, &theme),
+                Tab::ClassLibrary => class_state.render(f, chunks[2], &app, &theme),
             }
 
             // Bottom horizontal separator.
@@ -135,7 +135,7 @@ fn main() -> io::Result<()> {
                     Tab::Character => " Tab: Next tab  j/k: Navigate  Enter: Load  a: New  d: Delete  r: Reload  ?: Hide help  q: Quit",
                     Tab::SystemPanel => " Tab: Next tab  j/k: Navigate  +/-: Adjust  Enter: Expand  d: Delete  r: Reload  ?: Hide help  q: Quit",
                     Tab::SkillLibrary => " Tab: Next tab  j/k: Navigate  /: Search  Enter: View  a: Add  d: Delete  r: Reload  ?: Hide help  q: Quit",
-                    Tab::ProfessionLibrary => " Tab: Next tab  j/k: Navigate  /: Search  Enter: View  a: Add  d: Delete  r: Reload  ?: Hide help",
+                    Tab::ClassLibrary => " Tab: Next tab  j/k: Navigate  /: Search  Enter: View  a: Add  d: Delete  r: Reload  ?: Hide help",
                 };
                 let help = Paragraph::new(help_text)
                     .style(Style::default().fg(theme.dimmed));
@@ -196,7 +196,7 @@ fn main() -> io::Result<()> {
                     app.show_quit_confirm = true;
                     continue;
                 }
-                KeyCode::Char('r') => {
+                KeyCode::Char('r') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                     reloader.force_reload(&mut app, &mut char_state);
                     continue;
                 }
@@ -208,7 +208,7 @@ fn main() -> io::Result<()> {
                 Tab::Character => { char_state.handle_input(key, &mut app); }
                 Tab::SystemPanel => { panel_state.handle_input(key, &mut app); }
                 Tab::SkillLibrary => { skill_state.handle_input(key, &mut app); }
-                Tab::ProfessionLibrary => { profession_state.handle_input(key, &mut app); }
+                Tab::ClassLibrary => { class_state.handle_input(key, &mut app); }
             }
         }
     }
@@ -219,7 +219,7 @@ fn main() -> io::Result<()> {
         let _ = json_store::save_character(&char_dir, character);
     }
     let _ = json_store::save_json(&app.data_dir.join("skills.json"), &app.skill_library);
-    let _ = json_store::save_json(&app.data_dir.join("professions.json"), &app.profession_library);
+    let _ = json_store::save_json(&app.data_dir.join("classes.json"), &app.class_library);
 
     // Restore terminal state.
     disable_raw_mode()?;

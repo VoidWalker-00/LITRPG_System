@@ -488,12 +488,12 @@ fn build_character_cards(app: &App, names: &[String]) -> Vec<CardData> {
             Ok(c) => {
                 let race_grade = format!("{} [Grade {}]", c.race, c.grade.name());
                 let level = format!("Lv {}", c.level);
-                let profession = c.professions.first()
+                let class = c.classes.first()
                     .map(|p| p.definition_name.clone())
                     .unwrap_or_else(|| "(none)".to_string());
                 CardData {
                     title: c.name.clone(),
-                    lines: vec![race_grade, level, profession],
+                    lines: vec![race_grade, level, class],
                     is_action: false,
                 }
             }

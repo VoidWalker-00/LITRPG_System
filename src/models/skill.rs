@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-/// Whether a skill is learned (Acquired), born with (Innate), or granted by a profession.
+/// Whether a skill is learned (Acquired), born with (Innate), or granted by a class.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SkillCategory {
     Acquired,
     Innate,
-    Profession,
+    Class,
 }
 
 /// Whether a skill requires activation (Active) or is always on (Passive).

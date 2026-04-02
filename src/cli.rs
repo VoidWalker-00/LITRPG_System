@@ -1,7 +1,7 @@
 /// CLI interface for the LITRPG System.
 ///
 /// Provides JSON-based commands for managing characters, skills, and
-/// professions without launching the TUI. All output is JSON to stdout;
+/// classes without launching the TUI. All output is JSON to stdout;
 /// errors go to stderr with exit code 1.
 
 use std::path::PathBuf;
@@ -13,7 +13,7 @@ use serde_json::json;
 use crate::formulas::xp;
 use crate::models::attribute::{AttributeKind, Attributes};
 use crate::models::character::{Character, CharacterInnateSkill, CharacterSkill};
-use crate::models::profession::{CharacterProfession, ProfessionDefinition};
+use crate::models::class::{CharacterClass, ClassDefinition};
 use crate::models::skill::{
     MasteryRank, RankDefinition, SkillCategory, SkillDefinition, SkillEffect, SkillType,
 };
@@ -92,12 +92,12 @@ pub enum Command {
         /// Remove a skill by name.
         #[arg(long)]
         remove_skill: Option<String>,
-        /// Add a profession from the library (respects slot limit).
+        /// Add a class from the library (respects slot limit).
         #[arg(long)]
-        add_profession: Option<String>,
-        /// Remove a profession by name.
+        add_class: Option<String>,
+        /// Remove a class by name.
         #[arg(long)]
-        remove_profession: Option<String>,
+        remove_class: Option<String>,
         /// Distribute unspent attribute points (format: kind:points, e.g. str:3).
         #[arg(long)]
         add_attr: Option<String>,
@@ -118,11 +118,30 @@ pub enum Command {
         action: SkillAction,
     },
 
-    /// Manage the profession library.
-    Profession {
+    /// Manage the class library.
+    Class {
         #[command(subcommand)]
-        action: ProfessionAction,
+        action: ClassAction,
     },
+
+    /// Clear all data for a specific tab or everything.
+    Clear {
+        #[command(subcommand)]
+        target: ClearTarget,
+    },
+}
+
+/// What to clear.
+#[derive(Subcommand)]
+pub enum ClearTarget {
+    /// Delete all saved characters.
+    Characters,
+    /// Empty the skill library.
+    Skills,
+    /// Empty the class library.
+    Classes,
+    /// Clear everything (characters + all libraries).
+    All,
 }
 
 /// Skill library subcommands.
@@ -201,23 +220,23 @@ pub enum SkillAction {
     },
 }
 
-/// Profession library subcommands.
+/// Class library subcommands.
 #[derive(Subcommand)]
-pub enum ProfessionAction {
-    /// List all professions.
+pub enum ClassAction {
+    /// List all classes.
     List,
 
-    /// Show full profession definition.
+    /// Show full class definition.
     Show {
-        /// Profession name.
+        /// Class name.
         name: String,
     },
 
-    /// Create a new profession definition.
+    /// Create a new class definition.
     Create {
-        /// Profession name.
+        /// Class name.
         name: String,
-        /// Profession description.
+        /// Class description.
         #[arg(long, default_value = "")]
         description: String,
         /// Passive ability name.
@@ -229,17 +248,31 @@ pub enum ProfessionAction {
         /// Comma-separated list of granted skill names.
         #[arg(long, default_value = "")]
         skills: String,
+        /// Bonus STR per level-up.
+        #[arg(long, default_value_t = 0)] bonus_str: u32,
+        /// Bonus AGI per level-up.
+        #[arg(long, default_value_t = 0)] bonus_agi: u32,
+        /// Bonus END per level-up.
+        #[arg(long, default_value_t = 0)] bonus_end: u32,
+        /// Bonus INT per level-up.
+        #[arg(long, default_value_t = 0)] bonus_int: u32,
+        /// Bonus WIS per level-up.
+        #[arg(long, default_value_t = 0)] bonus_wis: u32,
+        /// Bonus PER per level-up.
+        #[arg(long, default_value_t = 0)] bonus_per: u32,
+        /// Free unspent attribute points added per level-up.
+        #[arg(long, default_value_t = 0)] bonus_free: u32,
     },
 
-    /// Delete a profession from the library.
+    /// Delete a class from the library.
     Delete {
-        /// Profession name.
+        /// Class name.
         name: String,
     },
 
-    /// Update an existing profession definition.
+    /// Update an existing class definition.
     Update {
-        /// Profession name.
+        /// Class name.
         name: String,
         /// New description.
         #[arg(long)]
@@ -250,12 +283,26 @@ pub enum ProfessionAction {
         /// New passive description.
         #[arg(long)]
         passive_desc: Option<String>,
-        /// Add a skill to the profession's granted skills.
+        /// Add a skill to the class's granted skills.
         #[arg(long)]
         add_skill: Option<String>,
-        /// Remove a skill from the profession's granted skills.
+        /// Remove a skill from the class's granted skills.
         #[arg(long)]
         remove_skill: Option<String>,
+        /// Set bonus STR per level-up.
+        #[arg(long)] bonus_str: Option<u32>,
+        /// Set bonus AGI per level-up.
+        #[arg(long)] bonus_agi: Option<u32>,
+        /// Set bonus END per level-up.
+        #[arg(long)] bonus_end: Option<u32>,
+        /// Set bonus INT per level-up.
+        #[arg(long)] bonus_int: Option<u32>,
+        /// Set bonus WIS per level-up.
+        #[arg(long)] bonus_wis: Option<u32>,
+        /// Set bonus PER per level-up.
+        #[arg(long)] bonus_per: Option<u32>,
+        /// Set free unspent attribute points per level-up.
+        #[arg(long)] bonus_free: Option<u32>,
     },
 }
 
@@ -311,8 +358,8 @@ pub fn run(cmd: Command) {
             grade_up,
             add_skill,
             remove_skill,
-            add_profession,
-            remove_profession,
+            add_class,
+            remove_class,
             add_attr,
             remove_attr,
             kill,
@@ -323,8 +370,8 @@ pub fn run(cmd: Command) {
                 grade_up,
                 add_skill: add_skill.into_iter().collect(),
                 remove_skill: remove_skill.into_iter().collect(),
-                add_profession: add_profession.into_iter().collect(),
-                remove_profession: remove_profession.into_iter().collect(),
+                add_class: add_class.into_iter().collect(),
+                remove_class: remove_class.into_iter().collect(),
                 add_attr: add_attr.into_iter().collect(),
                 remove_attr: remove_attr.into_iter().collect(),
                 kill: kill.into_iter().collect(),
@@ -369,36 +416,35 @@ pub fn run(cmd: Command) {
                 &remove_effect.into_iter().collect::<Vec<_>>(),
             ),
         },
-        Command::Profession { action } => match action {
-            ProfessionAction::List => cmd_profession_list(&data_dir),
-            ProfessionAction::Show { name } => cmd_profession_show(&data_dir, &name),
-            ProfessionAction::Create {
-                name,
-                description,
-                passive_name,
-                passive_desc,
-                skills,
+        Command::Clear { target } => cmd_clear(&data_dir, &char_dir, target),
+        Command::Class { action } => match action {
+            ClassAction::List => cmd_class_list(&data_dir),
+            ClassAction::Show { name } => cmd_class_show(&data_dir, &name),
+            ClassAction::Create {
+                name, description, passive_name, passive_desc, skills,
+                bonus_str, bonus_agi, bonus_end, bonus_int, bonus_wis, bonus_per, bonus_free,
             } => {
                 let skill_list: Vec<String> = skills
                     .split(',')
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
                     .collect();
-                cmd_profession_create(&data_dir, &name, &description, &passive_name, &passive_desc, &skill_list)
+                cmd_class_create(
+                    &data_dir, &name, &description, &passive_name, &passive_desc, &skill_list,
+                    bonus_str, bonus_agi, bonus_end, bonus_int, bonus_wis, bonus_per, bonus_free,
+                )
             }
-            ProfessionAction::Delete { name } => cmd_profession_delete(&data_dir, &name),
-            ProfessionAction::Update {
-                name,
-                description,
-                passive_name,
-                passive_desc,
-                add_skill,
-                remove_skill,
-            } => cmd_profession_update(
+            ClassAction::Delete { name } => cmd_class_delete(&data_dir, &name),
+
+            ClassAction::Update {
+                name, description, passive_name, passive_desc, add_skill, remove_skill,
+                bonus_str, bonus_agi, bonus_end, bonus_int, bonus_wis, bonus_per, bonus_free,
+            } => cmd_class_update(
                 &data_dir, &name,
                 description.as_deref(), passive_name.as_deref(), passive_desc.as_deref(),
                 &add_skill.into_iter().collect::<Vec<_>>(),
                 &remove_skill.into_iter().collect::<Vec<_>>(),
+                bonus_str, bonus_agi, bonus_end, bonus_int, bonus_wis, bonus_per, bonus_free,
             ),
         },
     };
@@ -484,6 +530,39 @@ fn cmd_delete(char_dir: &PathBuf, name: &str) -> Result<String, String> {
     Ok(json_ok(&format!("Deleted character '{}'", name)))
 }
 
+/// Clear all data for the specified target.
+fn cmd_clear(data_dir: &PathBuf, char_dir: &PathBuf, target: ClearTarget) -> Result<String, String> {
+    let clear_characters = matches!(target, ClearTarget::Characters | ClearTarget::All);
+    let clear_skills     = matches!(target, ClearTarget::Skills     | ClearTarget::All);
+    let clear_classes    = matches!(target, ClearTarget::Classes    | ClearTarget::All);
+
+    if clear_characters {
+        let entries = std::fs::read_dir(char_dir).map_err(|e| e.to_string())?;
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    if clear_skills {
+        json_store::save_json(&data_dir.join("skills.json"), &Vec::<SkillDefinition>::new())
+            .map_err(|e| e.to_string())?;
+    }
+    if clear_classes {
+        json_store::save_json(&data_dir.join("classes.json"), &Vec::<ClassDefinition>::new())
+            .map_err(|e| e.to_string())?;
+    }
+
+    let label = match target {
+        ClearTarget::Characters => "characters",
+        ClearTarget::Skills     => "skill library",
+        ClearTarget::Classes    => "class library",
+        ClearTarget::All        => "all data",
+    };
+    Ok(json_ok(&format!("Cleared {}", label)))
+}
+
 // ---------------------------------------------------------------------------
 // Update command
 // ---------------------------------------------------------------------------
@@ -495,8 +574,8 @@ struct UpdateOpts {
     grade_up: bool,
     add_skill: Vec<String>,
     remove_skill: Vec<String>,
-    add_profession: Vec<String>,
-    remove_profession: Vec<String>,
+    add_class: Vec<String>,
+    remove_class: Vec<String>,
     add_attr: Vec<String>,    // "str:5" format
     remove_attr: Vec<String>, // "str:5" format
     kill: Vec<String>,        // "enemy_level:count" format
@@ -504,11 +583,19 @@ struct UpdateOpts {
 }
 
 /// Apply mutations to a character: grade-up, level-up, kill XP, skills,
-/// professions, and attribute distribution.
+/// classes, and attribute distribution.
 fn cmd_update(data_dir: &std::path::Path, name: &str, opts: &UpdateOpts) -> Result<String, String> {
     let char_dir = data_dir.join("characters");
     let mut character = json_store::load_character(&char_dir, name)
         .map_err(|_| format!("Character '{}' not found", name))?;
+
+    // Load class library up front — needed for attribute point calculations.
+    let classes_path = data_dir.join("classes.json");
+    let class_lib: Vec<ClassDefinition> = if classes_path.exists() {
+        json_store::load_json(&classes_path).unwrap_or_default()
+    } else {
+        Vec::new()
+    };
 
     // Grade up (resets level and XP).
     if opts.grade_up {
@@ -524,6 +611,7 @@ fn cmd_update(data_dir: &std::path::Path, name: &str, opts: &UpdateOpts) -> Resu
             if character.level >= 100 { break; }
             character.level += 1;
             character.unspent_attribute_points += character.attribute_points_per_level();
+            character.apply_class_level_bonuses(&class_lib);
         }
     }
 
@@ -545,6 +633,7 @@ fn cmd_update(data_dir: &std::path::Path, name: &str, opts: &UpdateOpts) -> Resu
                     character.xp -= required;
                     character.level += 1;
                     character.unspent_attribute_points += character.attribute_points_per_level();
+                    character.apply_class_level_bonuses(&class_lib);
                 } else {
                     break;
                 }
@@ -582,24 +671,18 @@ fn cmd_update(data_dir: &std::path::Path, name: &str, opts: &UpdateOpts) -> Resu
         }
     }
 
-    // Add professions from library (respects slot limit).
-    let profs_path = data_dir.join("professions.json");
-    let prof_lib: Vec<ProfessionDefinition> = if profs_path.exists() {
-        json_store::load_json(&profs_path).unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-    for prof_name in &opts.add_profession {
-        if character.professions.len() as u32 >= character.profession_slots {
-            return Err("Profession slot limit reached".to_string());
+    // Add classes from library (respects slot limit).
+    for class_name in &opts.add_class {
+        if character.classes.len() as u32 >= character.class_slots {
+            return Err("Class slot limit reached".to_string());
         }
-        if character.professions.iter().any(|p| p.definition_name == *prof_name) {
-            return Err(format!("Character already has profession '{}'", prof_name));
+        if character.classes.iter().any(|p| p.definition_name == *class_name) {
+            return Err(format!("Character already has class '{}'", class_name));
         }
-        let prof_def = prof_lib.iter().find(|p| p.name == *prof_name)
-            .ok_or_else(|| format!("Profession '{}' not found in library", prof_name))?;
-        // Auto-add the profession's granted skills (skip duplicates).
-        for skill_name in &prof_def.skills {
+        let class_def = class_lib.iter().find(|p| p.name == *class_name)
+            .ok_or_else(|| format!("Class '{}' not found in library", class_name))?;
+        // Auto-add the class's granted skills (skip duplicates).
+        for skill_name in &class_def.skills {
             if !character.skills.iter().any(|s| s.definition_name == *skill_name) {
                 character.skills.push(CharacterSkill {
                     definition_name: skill_name.clone(),
@@ -608,19 +691,19 @@ fn cmd_update(data_dir: &std::path::Path, name: &str, opts: &UpdateOpts) -> Resu
                 });
             }
         }
-        character.professions.push(CharacterProfession {
-            definition_name: prof_name.clone(),
+        character.classes.push(CharacterClass {
+            definition_name: class_name.clone(),
             level: 0,
             passive_rank: 0,
         });
     }
 
-    // Remove professions.
-    for prof_name in &opts.remove_profession {
-        let before = character.professions.len();
-        character.professions.retain(|p| p.definition_name != *prof_name);
-        if character.professions.len() == before {
-            return Err(format!("Profession '{}' not found on character", prof_name));
+    // Remove classes.
+    for class_name in &opts.remove_class {
+        let before = character.classes.len();
+        character.classes.retain(|p| p.definition_name != *class_name);
+        if character.classes.len() == before {
+            return Err(format!("Class '{}' not found on character", class_name));
         }
     }
 
@@ -700,8 +783,8 @@ fn parse_category(s: &str) -> Result<SkillCategory, String> {
     match s.to_lowercase().as_str() {
         "acquired" => Ok(SkillCategory::Acquired),
         "innate" => Ok(SkillCategory::Innate),
-        "profession" => Ok(SkillCategory::Profession),
-        _ => Err(format!("Unknown category '{}' (use: acquired, innate, profession)", s)),
+        "class" => Ok(SkillCategory::Class),
+        _ => Err(format!("Unknown category '{}' (use: acquired, innate, class)", s)),
     }
 }
 
@@ -845,18 +928,18 @@ fn cmd_skill_update(
 }
 
 // ---------------------------------------------------------------------------
-// Profession library commands
+// Class library commands
 // ---------------------------------------------------------------------------
 
-/// List all professions as summary JSON array.
-fn cmd_profession_list(data_dir: &std::path::Path) -> Result<String, String> {
-    let path = data_dir.join("professions.json");
-    let profs: Vec<ProfessionDefinition> = if path.exists() {
+/// List all classes as summary JSON array.
+fn cmd_class_list(data_dir: &std::path::Path) -> Result<String, String> {
+    let path = data_dir.join("classes.json");
+    let classes: Vec<ClassDefinition> = if path.exists() {
         json_store::load_json(&path).unwrap_or_default()
     } else {
         Vec::new()
     };
-    let summaries: Vec<serde_json::Value> = profs.iter().map(|p| {
+    let summaries: Vec<serde_json::Value> = classes.iter().map(|p| {
         json!({
             "name": p.name,
             "skills": p.skills,
@@ -866,75 +949,90 @@ fn cmd_profession_list(data_dir: &std::path::Path) -> Result<String, String> {
     serde_json::to_string_pretty(&summaries).map_err(|e| e.to_string())
 }
 
-/// Show full profession definition as JSON.
-fn cmd_profession_show(data_dir: &std::path::Path, name: &str) -> Result<String, String> {
-    let path = data_dir.join("professions.json");
-    let profs: Vec<ProfessionDefinition> = json_store::load_json(&path)
-        .map_err(|_| "No professions library found".to_string())?;
-    let prof = profs.iter().find(|p| p.name == name)
-        .ok_or_else(|| format!("Profession '{}' not found", name))?;
-    serde_json::to_string_pretty(prof).map_err(|e| e.to_string())
+/// Show full class definition as JSON.
+fn cmd_class_show(data_dir: &std::path::Path, name: &str) -> Result<String, String> {
+    let path = data_dir.join("classes.json");
+    let classes: Vec<ClassDefinition> = json_store::load_json(&path)
+        .map_err(|_| "No class library found".to_string())?;
+    let cls = classes.iter().find(|p| p.name == name)
+        .ok_or_else(|| format!("Class '{}' not found", name))?;
+    serde_json::to_string_pretty(cls).map_err(|e| e.to_string())
 }
 
-/// Create a new profession definition.
-fn cmd_profession_create(
+/// Create a new class definition.
+#[allow(clippy::too_many_arguments)]
+fn cmd_class_create(
     data_dir: &std::path::Path, name: &str, description: &str,
     passive_name: &str, passive_desc: &str, skills: &[String],
+    bonus_str: u32, bonus_agi: u32, bonus_end: u32,
+    bonus_int: u32, bonus_wis: u32, bonus_per: u32, bonus_free: u32,
 ) -> Result<String, String> {
-    let path = data_dir.join("professions.json");
-    let mut profs: Vec<ProfessionDefinition> = if path.exists() {
+    let path = data_dir.join("classes.json");
+    let mut classes: Vec<ClassDefinition> = if path.exists() {
         json_store::load_json(&path).unwrap_or_default()
     } else {
         Vec::new()
     };
-    if profs.iter().any(|p| p.name == name) {
-        return Err(format!("Profession '{}' already exists", name));
+    if classes.iter().any(|p| p.name == name) {
+        return Err(format!("Class '{}' already exists", name));
     }
-    profs.push(ProfessionDefinition {
+    classes.push(ClassDefinition {
         name: name.to_string(),
         description: description.to_string(),
         skills: skills.to_vec(),
         passive_name: passive_name.to_string(),
         passive_description: passive_desc.to_string(),
+        bonus_str, bonus_agi, bonus_end, bonus_int, bonus_wis, bonus_per,
+        bonus_free_points: bonus_free,
     });
-    json_store::save_json(&path, &profs)?;
-    Ok(json_ok(&format!("Created profession '{}'", name)))
+    json_store::save_json(&path, &classes)?;
+    Ok(json_ok(&format!("Created class '{}'", name)))
 }
 
-/// Delete a profession from the library.
-fn cmd_profession_delete(data_dir: &std::path::Path, name: &str) -> Result<String, String> {
-    let path = data_dir.join("professions.json");
-    let mut profs: Vec<ProfessionDefinition> = json_store::load_json(&path)
-        .map_err(|_| "No professions library found".to_string())?;
-    let before = profs.len();
-    profs.retain(|p| p.name != name);
-    if profs.len() == before {
-        return Err(format!("Profession '{}' not found", name));
+/// Delete a class from the library.
+fn cmd_class_delete(data_dir: &std::path::Path, name: &str) -> Result<String, String> {
+    let path = data_dir.join("classes.json");
+    let mut classes: Vec<ClassDefinition> = json_store::load_json(&path)
+        .map_err(|_| "No class library found".to_string())?;
+    let before = classes.len();
+    classes.retain(|p| p.name != name);
+    if classes.len() == before {
+        return Err(format!("Class '{}' not found", name));
     }
-    json_store::save_json(&path, &profs)?;
-    Ok(json_ok(&format!("Deleted profession '{}'", name)))
+    json_store::save_json(&path, &classes)?;
+    Ok(json_ok(&format!("Deleted class '{}'", name)))
 }
 
-/// Update a profession — modify metadata and add/remove skills.
-fn cmd_profession_update(
+/// Update a class — modify metadata, add/remove skills, set per-stat bonuses.
+#[allow(clippy::too_many_arguments)]
+fn cmd_class_update(
     data_dir: &std::path::Path, name: &str,
     description: Option<&str>, passive_name: Option<&str>, passive_desc: Option<&str>,
     add_skills: &[String], remove_skills: &[String],
+    bonus_str: Option<u32>, bonus_agi: Option<u32>, bonus_end: Option<u32>,
+    bonus_int: Option<u32>, bonus_wis: Option<u32>, bonus_per: Option<u32>, bonus_free: Option<u32>,
 ) -> Result<String, String> {
-    let path = data_dir.join("professions.json");
-    let mut profs: Vec<ProfessionDefinition> = json_store::load_json(&path)
-        .map_err(|_| "No professions library found".to_string())?;
-    let prof = profs.iter_mut().find(|p| p.name == name)
-        .ok_or_else(|| format!("Profession '{}' not found", name))?;
+    let path = data_dir.join("classes.json");
+    let mut classes: Vec<ClassDefinition> = json_store::load_json(&path)
+        .map_err(|_| "No class library found".to_string())?;
+    let cls = classes.iter_mut().find(|p| p.name == name)
+        .ok_or_else(|| format!("Class '{}' not found", name))?;
 
-    if let Some(d) = description { prof.description = d.to_string(); }
-    if let Some(n) = passive_name { prof.passive_name = n.to_string(); }
-    if let Some(d) = passive_desc { prof.passive_description = d.to_string(); }
-    for s in remove_skills { prof.skills.retain(|sk| sk != s); }
-    for s in add_skills { prof.skills.push(s.clone()); }
+    if let Some(d) = description { cls.description = d.to_string(); }
+    if let Some(n) = passive_name { cls.passive_name = n.to_string(); }
+    if let Some(d) = passive_desc { cls.passive_description = d.to_string(); }
+    if let Some(v) = bonus_str { cls.bonus_str = v; }
+    if let Some(v) = bonus_agi { cls.bonus_agi = v; }
+    if let Some(v) = bonus_end { cls.bonus_end = v; }
+    if let Some(v) = bonus_int { cls.bonus_int = v; }
+    if let Some(v) = bonus_wis { cls.bonus_wis = v; }
+    if let Some(v) = bonus_per { cls.bonus_per = v; }
+    if let Some(v) = bonus_free { cls.bonus_free_points = v; }
+    for s in remove_skills { cls.skills.retain(|sk| sk != s); }
+    for s in add_skills { cls.skills.push(s.clone()); }
 
-    json_store::save_json(&path, &profs)?;
-    Ok(json_ok(&format!("Updated profession '{}'", name)))
+    json_store::save_json(&path, &classes)?;
+    Ok(json_ok(&format!("Updated class '{}'", name)))
 }
 
 // ---------------------------------------------------------------------------
@@ -973,9 +1071,9 @@ fn character_to_json(
         })
         .collect();
 
-    // Build professions list.
-    let professions: Vec<serde_json::Value> = character
-        .professions
+    // Build classes list.
+    let classes: Vec<serde_json::Value> = character
+        .classes
         .iter()
         .map(|cp| {
             json!({
@@ -1002,7 +1100,7 @@ fn character_to_json(
         "xp": character.xp,
         "xp_percentage": pct_rounded,
         "unspent_attribute_points": character.unspent_attribute_points,
-        "profession_slots": character.profession_slots,
+        "class_slots": character.class_slots,
         "bonus_attribute_points_per_level": character.bonus_attribute_points_per_level,
         "attributes": {
             "strength": character.attributes.strength,
@@ -1013,7 +1111,7 @@ fn character_to_json(
             "perception": character.attributes.perception
         },
         "innate_skill": innate,
-        "professions": professions,
+        "classes": classes,
         "skills": skills
     })
 }
@@ -1080,7 +1178,7 @@ mod tests {
         assert_eq!(parsed["attributes"]["perception"], 2);
         assert!(parsed["innate_skill"].is_null());
         assert_eq!(parsed["skills"].as_array().unwrap().len(), 0);
-        assert_eq!(parsed["professions"].as_array().unwrap().len(), 0);
+        assert_eq!(parsed["classes"].as_array().unwrap().len(), 0);
 
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1229,26 +1327,26 @@ mod tests {
     }
 
     #[test]
-    fn test_update_add_profession() {
+    fn test_update_add_class() {
         let dir = test_data_dir();
         let char_dir = dir.join("characters");
 
-        cmd_profession_create(&dir, "Mage", "Casts spells", "Arcane Focus", "Mana regen",
-            &["Fireball".to_string()]).unwrap();
+        cmd_class_create(&dir, "Mage", "Casts spells", "Arcane Focus", "Mana regen",
+            &["Fireball".to_string()], 0, 0, 0, 0, 0, 0, 0).unwrap();
         cmd_create(&char_dir, "Kael", 5, 5, 5, 5, 5, 5, None).unwrap();
 
-        // Create a skill the profession grants.
+        // Create a skill the class grants.
         cmd_skill_create(&dir, "Fireball", "acquired", "active", "Fire",
             &["Fire Damage".to_string()], &[20.0], &[0], &["Burns".to_string()]).unwrap();
 
         cmd_update(&dir, "Kael", &UpdateOpts {
-            add_profession: vec!["Mage".to_string()],
+            add_class: vec!["Mage".to_string()],
             ..Default::default()
         }).unwrap();
         let c = json_store::load_character(&char_dir, "Kael").unwrap();
-        assert_eq!(c.professions.len(), 1);
-        assert_eq!(c.professions[0].definition_name, "Mage");
-        // Profession's granted skill should be auto-added.
+        assert_eq!(c.classes.len(), 1);
+        assert_eq!(c.classes[0].definition_name, "Mage");
+        // Class's granted skill should be auto-added.
         assert_eq!(c.skills.len(), 1);
         assert_eq!(c.skills[0].definition_name, "Fireball");
 
@@ -1339,19 +1437,19 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    // --- Profession library tests ---
+    // --- Class library tests ---
 
     #[test]
-    fn test_profession_create_list_show() {
+    fn test_class_create_list_show() {
         let dir = test_data_dir();
-        cmd_profession_create(&dir, "Blacksmith", "Craft weapons", "Forgeborn", "Crafting speed",
-            &["Hammer Strike".to_string()]).unwrap();
-        let list = cmd_profession_list(&dir).unwrap();
+        cmd_class_create(&dir, "Blacksmith", "Craft weapons", "Forgeborn", "Crafting speed",
+            &["Hammer Strike".to_string()], 0, 0, 0, 0, 0, 0, 0).unwrap();
+        let list = cmd_class_list(&dir).unwrap();
         let json: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
         assert_eq!(json.len(), 1);
         assert_eq!(json[0]["name"], "Blacksmith");
 
-        let show = cmd_profession_show(&dir, "Blacksmith").unwrap();
+        let show = cmd_class_show(&dir, "Blacksmith").unwrap();
         let json: serde_json::Value = serde_json::from_str(&show).unwrap();
         assert_eq!(json["passive_name"], "Forgeborn");
 
@@ -1359,11 +1457,11 @@ mod tests {
     }
 
     #[test]
-    fn test_profession_delete() {
+    fn test_class_delete() {
         let dir = test_data_dir();
-        cmd_profession_create(&dir, "Blacksmith", "", "", "", &[]).unwrap();
-        cmd_profession_delete(&dir, "Blacksmith").unwrap();
-        let list = cmd_profession_list(&dir).unwrap();
+        cmd_class_create(&dir, "Blacksmith", "", "", "", &[], 0, 0, 0, 0, 0, 0, 0).unwrap();
+        cmd_class_delete(&dir, "Blacksmith").unwrap();
+        let list = cmd_class_list(&dir).unwrap();
         let json: Vec<serde_json::Value> = serde_json::from_str(&list).unwrap();
         assert_eq!(json.len(), 0);
 
@@ -1371,23 +1469,115 @@ mod tests {
     }
 
     #[test]
-    fn test_profession_update_add_remove_skill() {
+    fn test_class_update_add_remove_skill() {
         let dir = test_data_dir();
-        cmd_profession_create(&dir, "Blacksmith", "", "", "", &["Hammer".to_string()]).unwrap();
+        cmd_class_create(&dir, "Blacksmith", "", "", "", &["Hammer".to_string()], 0, 0, 0, 0, 0, 0, 0).unwrap();
 
-        cmd_profession_update(&dir, "Blacksmith", None, None, None,
-            &["Anvil".to_string()], &[]).unwrap();
-        let show = cmd_profession_show(&dir, "Blacksmith").unwrap();
+        cmd_class_update(&dir, "Blacksmith", None, None, None,
+            &["Anvil".to_string()], &[], None, None, None, None, None, None, None).unwrap();
+        let show = cmd_class_show(&dir, "Blacksmith").unwrap();
         let json: serde_json::Value = serde_json::from_str(&show).unwrap();
         assert_eq!(json["skills"].as_array().unwrap().len(), 2);
 
-        cmd_profession_update(&dir, "Blacksmith", None, None, None,
-            &[], &["Hammer".to_string()]).unwrap();
-        let show = cmd_profession_show(&dir, "Blacksmith").unwrap();
+        cmd_class_update(&dir, "Blacksmith", None, None, None,
+            &[], &["Hammer".to_string()], None, None, None, None, None, None, None).unwrap();
+        let show = cmd_class_show(&dir, "Blacksmith").unwrap();
         let json: serde_json::Value = serde_json::from_str(&show).unwrap();
         assert_eq!(json["skills"].as_array().unwrap().len(), 1);
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    // --- Clear command tests ---
+
+    #[test]
+    fn test_clear_characters() {
+        let dir = test_data_dir();
+        let char_dir = dir.join("characters");
+        cmd_create(&char_dir, "Alpha", 5, 5, 5, 5, 5, 5, None).unwrap();
+        cmd_create(&char_dir, "Beta",  5, 5, 5, 5, 5, 5, None).unwrap();
+        assert_eq!(json_store::list_characters(&char_dir).unwrap().len(), 2);
+
+        let result = cmd_clear(&dir, &char_dir, ClearTarget::Characters).unwrap();
+        assert!(result.contains("Cleared characters"));
+        assert_eq!(json_store::list_characters(&char_dir).unwrap().len(), 0);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_clear_skills() {
+        let dir = test_data_dir();
+        let char_dir = dir.join("characters");
+        cmd_skill_create(&dir, "Fireball", "acquired", "active", "",
+            &[], &[], &[], &[]).unwrap();
+        cmd_skill_create(&dir, "Ice Shard", "acquired", "active", "",
+            &[], &[], &[], &[]).unwrap();
+        let list: Vec<serde_json::Value> =
+            serde_json::from_str(&cmd_skill_list(&dir).unwrap()).unwrap();
+        assert_eq!(list.len(), 2);
+
+        let result = cmd_clear(&dir, &char_dir, ClearTarget::Skills).unwrap();
+        assert!(result.contains("Cleared skill library"));
+        let list: Vec<serde_json::Value> =
+            serde_json::from_str(&cmd_skill_list(&dir).unwrap()).unwrap();
+        assert_eq!(list.len(), 0);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_clear_classes() {
+        let dir = test_data_dir();
+        let char_dir = dir.join("characters");
+        cmd_class_create(&dir, "Mage", "", "", "", &[], 0, 0, 0, 0, 0, 0, 0).unwrap();
+        cmd_class_create(&dir, "Warrior", "", "", "", &[], 0, 0, 0, 0, 0, 0, 0).unwrap();
+        let list: Vec<serde_json::Value> =
+            serde_json::from_str(&cmd_class_list(&dir).unwrap()).unwrap();
+        assert_eq!(list.len(), 2);
+
+        let result = cmd_clear(&dir, &char_dir, ClearTarget::Classes).unwrap();
+        assert!(result.contains("Cleared class library"));
+        let list: Vec<serde_json::Value> =
+            serde_json::from_str(&cmd_class_list(&dir).unwrap()).unwrap();
+        assert_eq!(list.len(), 0);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_clear_all() {
+        let dir = test_data_dir();
+        let char_dir = dir.join("characters");
+
+        cmd_create(&char_dir, "Hero", 5, 5, 5, 5, 5, 5, None).unwrap();
+        cmd_skill_create(&dir, "Slash", "acquired", "active", "",
+            &[], &[], &[], &[]).unwrap();
+        cmd_class_create(&dir, "Fighter", "", "", "", &[], 0, 0, 0, 0, 0, 0, 0).unwrap();
+
+        let result = cmd_clear(&dir, &char_dir, ClearTarget::All).unwrap();
+        assert!(result.contains("Cleared all data"));
+
+        assert_eq!(json_store::list_characters(&char_dir).unwrap().len(), 0);
+        let skills: Vec<serde_json::Value> =
+            serde_json::from_str(&cmd_skill_list(&dir).unwrap()).unwrap();
+        assert_eq!(skills.len(), 0);
+        let classes: Vec<serde_json::Value> =
+            serde_json::from_str(&cmd_class_list(&dir).unwrap()).unwrap();
+        assert_eq!(classes.len(), 0);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Clears the real live data directory after all other tests have run.
+    /// Run with: cargo test test_z_teardown_live_data -- --ignored
+    #[test]
+    #[ignore]
+    fn test_z_teardown_live_data() {
+        let data_dir = crate::data_dir();
+        let char_dir = data_dir.join("characters");
+        cmd_clear(&data_dir, &char_dir, ClearTarget::All)
+            .expect("failed to clear live data");
     }
 
     // --- Full integration test ---
@@ -1401,18 +1591,18 @@ mod tests {
         cmd_skill_create(&dir, "Fireball", "acquired", "active", "Fire",
             &["Fire Damage".to_string()], &[20.0], &[0], &["Burns".to_string()]).unwrap();
 
-        // Create a profession.
-        cmd_profession_create(&dir, "Mage", "Casts spells", "Arcane Focus", "Mana regen",
-            &["Fireball".to_string()]).unwrap();
+        // Create a class.
+        cmd_class_create(&dir, "Mage", "Casts spells", "Arcane Focus", "Mana regen",
+            &["Fireball".to_string()], 0, 0, 0, 0, 0, 0, 0).unwrap();
 
         // Create a character.
         cmd_create(&char_dir, "Kael", 8, 5, 6, 3, 5, 7, None).unwrap();
 
-        // Update: level up, add skill, add profession, distribute attrs, show.
+        // Update: level up, add skill, add class, distribute attrs, show.
         let result = cmd_update(&dir, "Kael", &UpdateOpts {
             level_up: Some(5),
             add_skill: vec!["Fireball".to_string()],
-            add_profession: vec!["Mage".to_string()],
+            add_class: vec!["Mage".to_string()],
             add_attr: vec!["str:3".to_string()],
             show: true,
             ..Default::default()
@@ -1422,7 +1612,7 @@ mod tests {
         assert_eq!(json["name"], "Kael");
         assert_eq!(json["level"], 5);
         assert_eq!(json["skills"].as_array().unwrap().len(), 1);
-        assert_eq!(json["professions"].as_array().unwrap().len(), 1);
+        assert_eq!(json["classes"].as_array().unwrap().len(), 1);
         assert_eq!(json["attributes"]["strength"], 11); // 8 + 3
 
         let _ = fs::remove_dir_all(&dir);
